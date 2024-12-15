@@ -22,8 +22,22 @@ import androidx.navigation.compose.rememberNavController
 import com.example.listapp.ui.theme.ListAppTheme
 import com.google.firebase.FirebaseApp
 import com.google.firebase.database.FirebaseDatabase
+import com.example.listapp.GoogleAuthUiClient
+import com.google.android.gms.auth.api.identity.Identity
+
+
 
 class MainActivity : ComponentActivity() {
+
+    private val googleAuthUiClient by lazy {
+        GoogleAuthUiClient(
+            context = applicationContext,
+            oneTapClient = Identity.getSignInClient(applicationContext)
+        )
+    }
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -36,7 +50,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
 //                    Greeting("Android")
-                    MyAppNavigation(authViewModel = authViewModel)
+                    MyAppNavigation(authViewModel = authViewModel, google = googleAuthUiClient)
                 }
             }
         }
@@ -48,7 +62,7 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel) {
+fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient) {
     val navController = rememberNavController()
 
     val context = LocalContext.current
@@ -59,7 +73,7 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel) 
 
     NavHost(navController = navController, startDestination = "login", builder = {
         composable("login"){
-            LoginPage(modifier,navController,authViewModel)
+            LoginPage(modifier,navController,authViewModel, google = google)
         }
         composable("signup"){
             SignupPage(modifier,navController,authViewModel)

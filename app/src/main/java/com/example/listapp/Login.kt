@@ -28,11 +28,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.runtime.livedata.observeAsState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authViewModel: AuthViewModel) {
+fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authViewModel: AuthViewModel, google: GoogleAuthUiClient) {
 
 
     var email by remember {
@@ -103,6 +106,22 @@ fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authVie
         }) {
             Text(text = "Sign Up instead")
         }
+
+        Button(onClick = {
+            GlobalScope.launch(Dispatchers.Main) {
+                val idToken = google.signIn()
+                if (idToken != null) {
+                    Toast.makeText(context, "Login Success!", Toast.LENGTH_SHORT).show()
+                    navController.navigate("home")
+                } else {
+                    Toast.makeText(context, "Login Failed!", Toast.LENGTH_SHORT).show()
+                }
+            }
+            }
+        ) {
+            Text(text = "Login")
+        }
+
 
     }
 
