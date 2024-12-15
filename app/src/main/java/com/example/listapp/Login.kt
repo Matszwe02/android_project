@@ -119,7 +119,7 @@ fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authVie
             }
             }
         ) {
-            Text(text = "Login")
+            Text(text = "Login with Google")
         }
 
 
