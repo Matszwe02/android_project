@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +25,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.database.FirebaseDatabase
 import com.example.listapp.GoogleAuthUiClient
 import com.google.android.gms.auth.api.identity.Identity
-
+import com.example.listapp.NavRail
 
 
 class MainActivity : ComponentActivity() {
@@ -49,8 +50,13 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-//                    Greeting("Android")
+                    Row {
+
+                    NavRail()
                     MyAppNavigation(authViewModel = authViewModel, google = googleAuthUiClient)
+
+                    }
+//                    Greeting("Android")
                 }
             }
         }
