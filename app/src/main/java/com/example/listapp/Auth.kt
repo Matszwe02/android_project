@@ -1,5 +1,6 @@
 package com.example.listapp
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,10 @@ class AuthViewModel : ViewModel() {
 
     private val auth : FirebaseAuth = FirebaseAuth.getInstance()
 
+    var userId: String? = null
+
+    var authCallback = {}
+
     private val _authState = MutableLiveData<AuthState>()
     val authState: LiveData<AuthState> = _authState
 
@@ -66,10 +71,14 @@ class AuthViewModel : ViewModel() {
             .addOnCompleteListener{task->
                 if (task.isSuccessful){
                     _authState.value = AuthState.Authenticated
+                    userId = FirebaseAuth.getInstance().currentUser?.uid
+                    Log.i("DB", "Logged in as $userId")
+                    authCallback()
                 }else{
                     _authState.value = AuthState.Error(task.exception?.message?:"Something went wrong")
                 }
             }
+
     }
 
     fun signup(email : String,password : String){
@@ -83,6 +92,9 @@ class AuthViewModel : ViewModel() {
             .addOnCompleteListener{task->
                 if (task.isSuccessful){
                     _authState.value = AuthState.Authenticated
+                    userId = FirebaseAuth.getInstance().currentUser?.uid
+                    Log.i("DB", "Logged in as $userId")
+                    authCallback()
                 }else{
                     _authState.value = AuthState.Error(task.exception?.message?:"Something went wrong")
                 }
@@ -115,6 +127,9 @@ class AuthViewModel : ViewModel() {
     fun signout(){
         auth.signOut()
         _authState.value = AuthState.Unauthenticated
+        userId = null
+        Log.i("DB", "Logged out")
+        authCallback()
     }
 
 
