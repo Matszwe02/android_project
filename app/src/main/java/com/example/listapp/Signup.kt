@@ -55,6 +55,9 @@ fun SignupPage(
     var password by remember {
         mutableStateOf("")
     }
+    var password2 by remember {
+        mutableStateOf("")
+    }
     var passwordVisible by remember { mutableStateOf(false) }
 
     val authState = authViewModel.authState.observeAsState()
@@ -111,11 +114,31 @@ fun SignupPage(
                 }
             }
         )
+        OutlinedTextField(
+            value = password2,
+            onValueChange = { password2 = it.trim() },
+            label = { Text("Confirm Password") },
+            placeholder = { Text("") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
-                authViewModel.signup(email, password)
+                if (password == password2)
+                {
+                    authViewModel.signup(email, password)
+
+                }
+                else
+                {
+                    Toast.makeText(context, "Passwords don't match!", Toast.LENGTH_SHORT).show()
+                }
             }, enabled = authState.value != AuthState.Loading
         ) {
             Text(text = "Create account")

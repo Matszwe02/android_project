@@ -71,6 +71,7 @@ class AuthViewModel : ViewModel() {
             .addOnCompleteListener{task->
                 if (task.isSuccessful){
                     _authState.value = AuthState.Authenticated
+                    Log.i("DB", "Logged in")
                     userId = FirebaseAuth.getInstance().currentUser?.uid
                     Log.i("DB", "Logged in as $userId")
                     authCallback()
