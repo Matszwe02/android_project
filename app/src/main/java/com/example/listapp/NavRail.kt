@@ -28,9 +28,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.navigation.NavController
 
 @Composable
-fun NavRail(shoppingLists: List<ShoppingList>) {
+fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController) {
 
     val iconDictionary = mapOf(
         1 to Icons.Filled.ShoppingCart,
@@ -59,7 +60,7 @@ fun NavRail(shoppingLists: List<ShoppingList>) {
                 icon = { Icon(Icons.Filled.AccountCircle, contentDescription = topItem) },
                 label = { Text(topItem) },
                 selected = selectedItem == 0,
-                onClick = { selectedItem = 0 }
+                onClick = { selectedItem = 0; navController.navigate("account") }
             )
 
             LazyColumn(
@@ -86,8 +87,8 @@ fun NavRail(shoppingLists: List<ShoppingList>) {
                         },
                         selected = selectedItem == index + 1,
                         onClick = {
-                            selectedItem = index + 1
-                            // TODO: To be replaced with navigation
+                            selectedItem = index + 1;
+                            navController.navigate("home")
                             Log.i("nav", "Clicked on $shoppingList")
                         }
                     )

@@ -123,11 +123,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Row {
 
-                    NavRail(viewModel.shoppingLists.collectAsState().value)
-                    MyAppNavigation(authViewModel = authViewModel, google = googleAuthUiClient)
+                    MyAppNavigation(authViewModel = authViewModel, google = googleAuthUiClient, lists = viewModel.shoppingLists)
 
                     }
-//                    Greeting("Android")
                 }
             }
         }
@@ -142,7 +140,7 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient) {
+fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient, lists: StateFlow<List<ShoppingList>>) {
     val navController = rememberNavController()
 
     val context = LocalContext.current
@@ -150,20 +148,20 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
 //    val firebase = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app")
 //    val dbref = firebase.getReference("info")
 
+    NavRail(lists.collectAsState().value, navController)
 
     NavHost(navController = navController, startDestination = "login", builder = {
         composable("login"){
-            LoginPage(modifier,navController,authViewModel, google = google)
+            LoginPage(modifier, navController, authViewModel, google = google)
         }
         composable("signup"){
-            SignupPage(modifier,navController,authViewModel)
+            SignupPage(modifier, navController, authViewModel)
         }
         composable("home"){
-            Home(modifier,navController,authViewModel, context)
+            Home(modifier, navController, authViewModel, context)
         }
-//        composable("newinfo")
-//        {
-//            NewinfoPage(modifier = modifier, context = context, navController, authViewModel)
-//        }
+        composable("account"){
+            Account(modifier, navController, authViewModel, context)
+        }
     })
 }
