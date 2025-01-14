@@ -1,5 +1,6 @@
 package com.example.listapp
 
+import Identicon
 import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
@@ -31,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.listapp.ui.theme.ListAppTheme
+import IdenticonDrawable
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import androidx.compose.material.icons.Icons
@@ -52,13 +54,10 @@ import com.google.firebase.auth.UserProfileChangeRequest
 fun Account(modifier: Modifier = Modifier, navController: NavController, authViewModel: AuthViewModel, context: Context) {
 
     val user = FirebaseAuth.getInstance().currentUser
-    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-    val db = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app").getReference("users/$userId")
+    val userId = user?.uid ?: ""
+//    val db = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app").getReference("users/$userId")
 
-    var name by remember {
-        mutableStateOf(user?.displayName.toString())
-    }
-
+    var username by remember { mutableStateOf(user?.displayName?:"User")}
     var password by remember { mutableStateOf("") }
     var password2 by remember { mutableStateOf("") }
     var changePasswordVisible by remember { mutableStateOf(false) }
@@ -81,17 +80,30 @@ fun Account(modifier: Modifier = Modifier, navController: NavController, authVie
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // User Icon
-        Icon(
-            imageVector = Icons.Filled.AccountCircle,
-            contentDescription = "User Icon",
-            modifier = Modifier.size(100.dp)
-        )
+
+        Spacer(modifier.height(32.dp))
+
+        Identicon(userId)
+//        if (userId == "")
+//            Icon(
+//                imageVector = Icons.Filled.AccountCircle,
+//                contentDescription = "User Icon",
+//                modifier = Modifier.size(100.dp)
+//            )
+//        else
+//            Icon(
+//                bitmap = icon.toBitmap(100.dp),
+//                contentDescription = "User Icon",
+//                modifier = Modifier.size(100.dp)
+//            )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Hello, ${user?.displayName?:"User"}!"
+            text = "Hello, ${username}!"
+        )
+        Text(
+            text = user?.email?:""
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -99,8 +111,8 @@ fun Account(modifier: Modifier = Modifier, navController: NavController, authVie
         if (changeNameVisible)
         {
             OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
+                value = username,
+                onValueChange = { username = it },
                 label = { Text("Name") },
                 placeholder = { Text("John Smith") },
                 modifier = Modifier
@@ -113,9 +125,9 @@ fun Account(modifier: Modifier = Modifier, navController: NavController, authVie
         Button(onClick = {
 
             if (!changeNameVisible) changeNameVisible = true
-            else if (name.isNotEmpty())
+            else if (username.isNotEmpty())
             {
-                user?.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(name).build())
+                user?.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(username).build())
                 Toast.makeText(context, "Updated Name!", Toast.LENGTH_SHORT).show()
                 changeNameVisible = false
             }
@@ -124,7 +136,7 @@ fun Account(modifier: Modifier = Modifier, navController: NavController, authVie
                 changeNameVisible = false
             }
         }) {
-            Text("Change Name")
+            Text(if (username.isNotEmpty() || !changeNameVisible) "Change Name" else "Cancel")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -185,7 +197,7 @@ fun Account(modifier: Modifier = Modifier, navController: NavController, authVie
                 changePasswordVisible = false
             }
         }) {
-            Text("Change Password")
+            Text(if (password.isNotEmpty() || !changePasswordVisible) "Change Password" else "Cancel")
         }
 
         Spacer(modifier = Modifier.height(8.dp))

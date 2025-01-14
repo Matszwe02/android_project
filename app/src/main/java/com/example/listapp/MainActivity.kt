@@ -109,7 +109,6 @@ class MainActivity : ComponentActivity() {
     }
 
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -130,7 +129,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        authViewModel.authCallback = {viewModel.fetchShoppingListsFromFirebase(authViewModel.userId)}
+        authViewModel.addAuthCallback {viewModel.fetchShoppingListsFromFirebase(authViewModel.userId)}
 
     }
 }
@@ -148,7 +147,7 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
 //    val firebase = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app")
 //    val dbref = firebase.getReference("info")
 
-    NavRail(lists.collectAsState().value, navController)
+    NavRail(lists.collectAsState().value, navController, authViewModel)
 
     NavHost(navController = navController, startDestination = "login", builder = {
         composable("login"){

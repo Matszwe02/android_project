@@ -32,8 +32,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
-
-
+import java.util.concurrent.CopyOnWriteArrayList
 
 
 class AuthViewModel : ViewModel() {
@@ -42,7 +41,8 @@ class AuthViewModel : ViewModel() {
 
     var userId: String? = null
 
-    var authCallback = {}
+//    var authCallback = {}
+    private val authCallbacks = CopyOnWriteArrayList<() -> Unit>()
 
     private val _authState = MutableLiveData<AuthState>()
     val authState: LiveData<AuthState> = _authState
@@ -74,7 +74,7 @@ class AuthViewModel : ViewModel() {
                     Log.i("DB", "Logged in")
                     userId = FirebaseAuth.getInstance().currentUser?.uid
                     Log.i("DB", "Logged in as $userId")
-                    authCallback()
+                    invokeAuthCallbacks()
                 }else{
                     _authState.value = AuthState.Error(task.exception?.message?:"Something went wrong")
                 }
@@ -95,13 +95,23 @@ class AuthViewModel : ViewModel() {
                     _authState.value = AuthState.Authenticated
                     userId = FirebaseAuth.getInstance().currentUser?.uid
                     Log.i("DB", "Logged in as $userId")
-                    authCallback()
+                    invokeAuthCallbacks()
                 }else{
                     _authState.value = AuthState.Error(task.exception?.message?:"Something went wrong")
                 }
             }
     }
+    fun addAuthCallback(callback: () -> Unit) {
+        authCallbacks.add(callback)
+    }
 
+    fun removeAuthCallback(callback: () -> Unit) {
+        authCallbacks.remove(callback)
+    }
+
+    private fun invokeAuthCallbacks() {
+        authCallbacks.forEach { it.invoke() }
+    }
 
     fun g_login(email : String,password : String){
 
@@ -130,7 +140,7 @@ class AuthViewModel : ViewModel() {
         _authState.value = AuthState.Unauthenticated
         userId = null
         Log.i("DB", "Logged out")
-        authCallback()
+        invokeAuthCallbacks()
     }
 
 

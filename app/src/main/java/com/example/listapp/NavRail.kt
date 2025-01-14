@@ -1,5 +1,6 @@
 package com.example.listapp
 
+import Identicon
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,9 +30,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController) {
+fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController, authViewModel: AuthViewModel) {
 
     val iconDictionary = mapOf(
         1 to Icons.Filled.ShoppingCart,
@@ -42,11 +44,13 @@ fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController) {
         // Add more icons as needed
     )
 
-
     var selectedItem by remember { mutableIntStateOf(0) }
 
     val topItem = "Account"
     val bottomItem = "App Settings"
+    var userId by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser?.uid ?: "") }
+
+    authViewModel.addAuthCallback { userId = FirebaseAuth.getInstance().currentUser?.uid ?: "" }
 
     NavigationRail(modifier = Modifier.widthIn(max = 70.dp)) {
         Column(
@@ -57,10 +61,10 @@ fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController) {
         ) {
             NavigationRailItem(
                 modifier = Modifier.padding(bottom = 20.dp),
-                icon = { Icon(Icons.Filled.AccountCircle, contentDescription = topItem) },
+                icon = { Identicon(userId.ifEmpty { "" }, size = 20.dp) },
                 label = { Text(topItem) },
                 selected = selectedItem == 0,
-                onClick = { selectedItem = 0; navController.navigate("account") }
+                onClick = { selectedItem = 0; navController.navigate("account")}
             )
 
             LazyColumn(
