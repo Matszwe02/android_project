@@ -162,5 +162,8 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
         composable("account"){
             Account(modifier, navController, authViewModel, context)
         }
+        composable("settings"){
+            Settings(modifier)
+        }
     })
 }

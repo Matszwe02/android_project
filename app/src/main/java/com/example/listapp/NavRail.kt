@@ -109,7 +109,7 @@ fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController, aut
                         textAlign = TextAlign.Center
                     )
                 },                selected = selectedItem == shoppingLists.size + 1, // After all shopping lists
-                onClick = { selectedItem = shoppingLists.size + 1 }
+                onClick = { selectedItem = shoppingLists.size + 1; navController.navigate("settings") }
             )
         }
     }
