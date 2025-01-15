@@ -1,5 +1,6 @@
 package com.example.listapp
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
+import com.google.firebase.auth.FirebaseUser
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +80,7 @@ fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authVie
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Login Page", fontSize = 32.sp)
+        Text(text = "Login", fontSize = 32.sp)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -131,20 +133,46 @@ fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authVie
             Text(text = "Sign Up instead")
         }
 
-        Button(onClick = {
-            GlobalScope.launch(Dispatchers.Main) {
-                val idToken = google.signIn()
-                if (idToken != null) {
-                    Toast.makeText(context, "Login Success!", Toast.LENGTH_SHORT).show()
-                    navController.navigate("home")
-                } else {
-                    Toast.makeText(context, "Login Failed!", Toast.LENGTH_SHORT).show()
+        var user by remember { mutableStateOf<FirebaseUser?>(null) }
+
+//        Column(modifier = Modifier.fillMaxSize()) {
+            if (user == null) {
+                GoogleSignInButton(
+                    onSignInSuccess = { firebaseUser ->
+                        user = firebaseUser
+                        authViewModel.updateAuthState(firebaseUser)
+                    },
+                    onSignInFailure = { exception ->
+                        // Handle sign-in failure
+                        Log.e("SignIn", "Error signing in", exception)
+                    }
+                )
+            } else {
+                Text("Welcome, ${user?.displayName}")
+                Button(onClick = {
+                    authViewModel.signout()
+                    user = null
+                }) {
+                    Text("Sign out")
                 }
             }
-            }
-        ) {
-            Text(text = "Login with Google")
-        }
+//        }
+
+
+//        Button(onClick = {
+//            GlobalScope.launch(Dispatchers.Main) {
+//                val idToken = google.signIn()
+//                if (idToken != null) {
+//                    Toast.makeText(context, "Login Success!", Toast.LENGTH_SHORT).show()
+//                    navController.navigate("home")
+//                } else {
+//                    Toast.makeText(context, "Login Failed!", Toast.LENGTH_SHORT).show()
+//                }
+//            }
+//            }
+//        ) {
+//            Text(text = "Login with Google")
+//        }
 
 
     }
