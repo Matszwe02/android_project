@@ -5,10 +5,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -27,10 +32,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -38,10 +52,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.delay
 import kotlin.coroutines.coroutineContext
 
 
-fun addShoppingList(userId: String, title: String, icon: Int, content: String, shoppingListsClass: ShoppingLists) {
+fun addShoppingList(userId: String, title: String, icon: Int, content: String, callback: () -> Unit) {
     if (userId.isEmpty()) {
         Log.e("Firebase", "Cannot add shopping list: User is not logged in")
         return
@@ -72,7 +87,7 @@ fun addShoppingList(userId: String, title: String, icon: Int, content: String, s
         newShoppingListRef.setValue(updatedShoppingList)
             .addOnSuccessListener {
                 Log.i("Firebase", "Shopping list added successfully with ID: $shoppingListId")
-                shoppingListsClass.Callback()
+                callback()
             }
             .addOnFailureListener { e ->
                 Log.e("Firebase", "Error adding shopping list", e)
@@ -80,6 +95,55 @@ fun addShoppingList(userId: String, title: String, icon: Int, content: String, s
     } else {
         Log.e("Firebase", "Failed to generate key for shopping list")
     }
+}
+
+fun updateShoppingList(
+    listId: String,
+    title: String? = null,
+    icon: Int? = null,
+    content: String? = null,
+    callback: () -> Unit
+) {
+    val database = FirebaseDatabase.getInstance().reference
+    val listRef = database.child("shoppingLists").child(listId)
+
+    listRef.get().addOnCompleteListener { task ->
+        if (task.isSuccessful) {
+            val snapshot = task.result
+            val currentList = snapshot.getValue(ShoppingList::class.java)
+
+            if (currentList != null) {
+                val updatedList = currentList.copy(
+                    title = title ?: currentList.title,
+                    icon = icon ?: currentList.icon,
+                    content = content ?: currentList.content
+                )
+
+                listRef.setValue(updatedList)
+                    .addOnSuccessListener {
+                        callback()
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("Firebase", "Error updating shopping list", e)
+                    }
+            }
+        } else {
+            Log.e("Firebase", "Error fetching shopping list", task.exception)
+        }
+    }
+}
+
+fun removeShoppingList(listId: String, callback: () -> Unit) {
+    val database = FirebaseDatabase.getInstance().reference
+    val listRef = database.child("shoppingLists").child(listId)
+
+    listRef.removeValue()
+        .addOnSuccessListener {
+            callback()
+        }
+        .addOnFailureListener { e ->
+            Log.e("Firebase", "Error removing shopping list", e)
+        }
 }
 
 
@@ -106,6 +170,8 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
     val topItem = "Account"
     val bottomItem = "App Settings"
     var userId by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser?.uid ?: "") }
+    var showPopup by remember { mutableStateOf(false) }
+    var selectedListForPopup by remember { mutableStateOf<ShoppingList?>(null) }
 
     authViewModel.addAuthCallback { userId = FirebaseAuth.getInstance().currentUser?.uid ?: "" }
 
@@ -126,37 +192,50 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
 
             if (userId.isNotEmpty()) {
                 LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
+                    modifier = Modifier.weight(1f)
                 ) {
                     // List of shopping lists
                     itemsIndexed(shoppingLists) { index, shoppingList ->
-                        NavigationRailItem(
-                            modifier = Modifier
-                                .padding(vertical = 20.dp),
-                            icon = {
-                                Icon(
-                                    iconDictionary[shoppingList.icon] ?: Icons.Filled.ShoppingCart,
-                                    contentDescription = shoppingList.title
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = shoppingList.title,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center
-                                )
-                            },
-                            selected = selectedItem == index + 1,
-                            onClick = {
-                                selectedItem = index + 1
-                                selectedListId = shoppingList.id
-                                Log.i("ID", "Shopping list selected has ID: $selectedListId")
-                                navController.navigate("home/$selectedListId")
-                                shoppingListsClass.Callback()
-                            }
-                        )
+                        Box(modifier = Modifier.padding(vertical = 20.dp)) {
+                            NavigationRailItem(
+                                modifier = Modifier.padding(vertical = 20.dp),
+                                icon = {
+                                    Icon(
+                                        iconDictionary[shoppingList.icon] ?: Icons.Filled.ShoppingCart,
+                                        contentDescription = shoppingList.title
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = shoppingList.title,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Center
+                                    )
+                                },
+                                selected = selectedItem == index + 1,
+                                onClick = {
+                                    selectedItem = index + 1
+                                    selectedListId = shoppingList.id
+                                    Log.i("ID", "Shopping list selected has ID: $selectedListId")
+                                    navController.navigate("home/$selectedListId")
+                                    shoppingListsClass.Callback()
+                                }
+                            )
+                            if (selectedItem == index + 1)
+                                IconButton(
+                                    onClick = {
+                                        selectedListForPopup = shoppingList
+                                        showPopup = true
+                                    },
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                ) {
+                                    Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                                }
+                        }
+
+
+
                     }
 
                     item {
@@ -186,7 +265,7 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                                     title = "New Shopping List",
                                     icon = 1, // Default icon
                                     content = "Default content",
-                                    shoppingListsClass = shoppingListsClass
+                                    callback = { shoppingListsClass.Callback() }
                                 )
                             }
                         )
@@ -209,5 +288,104 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
             )
         }
     }
+    if (showPopup && selectedListForPopup != null) {
+        PopupDialog(
+            list = selectedListForPopup!!,
+            onClose = {
+                showPopup = false
+                selectedListForPopup = null
+            },
+            onUpdate = { newName, newIcon ->
+                updateShoppingList(
+                    listId = selectedListForPopup!!.id,
+                    title = newName,
+                    icon = newIcon,
+                    callback = {shoppingListsClass.Callback()}
+                )
+            },
+            onDelete = {
+                removeShoppingList(
+                    listId = selectedListForPopup!!.id,
+                    callback = {shoppingListsClass.Callback()}
+                )
+            }
+        )
+    }
+
+
 }
 
+
+@Composable
+fun PopupDialog(
+    list: ShoppingList,
+    onClose: () -> Unit,
+    onUpdate: (String, Int) -> Unit,
+    onDelete: () -> Unit
+) {
+    var title by remember { mutableStateOf(list.title) }
+    var iconIndex by remember { mutableStateOf(list.icon) }
+    val iconDictionary = mapOf(
+        1 to Icons.Filled.ShoppingCart,
+        2 to Icons.Filled.Place,
+        3 to Icons.Filled.Home,
+        4 to Icons.Filled.Star,
+        5 to Icons.Filled.Favorite,
+        // Add more icons as needed
+    )
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Edit Shopping List") },
+        text = {
+            Column {
+                TextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("List Name") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Select Icon:")
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    items(iconDictionary.keys.toList()) { iconKey ->
+                        IconButton(
+                            onClick = { iconIndex = iconKey },
+                            modifier = Modifier.padding(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = iconDictionary[iconKey] ?: Icons.Filled.ShoppingCart,
+                                contentDescription = "Icon $iconKey",
+                                tint = if (iconIndex == iconKey) Color.Blue else Color.Black
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        onDelete()
+                        onClose()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Delete", color = Color.White)
+                }            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onUpdate(title, iconIndex)
+                onClose()
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onClose) {
+                Text("Cancel")
+            }
+        }
+    )
+}
