@@ -35,18 +35,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
@@ -101,7 +104,7 @@ fun updateShoppingList(
     listId: String,
     title: String? = null,
     icon: Int? = null,
-    content: String? = null,
+    users: List<String>? = null,
     callback: () -> Unit
 ) {
     val database = FirebaseDatabase.getInstance().reference
@@ -116,7 +119,7 @@ fun updateShoppingList(
                 val updatedList = currentList.copy(
                     title = title ?: currentList.title,
                     icon = icon ?: currentList.icon,
-                    content = content ?: currentList.content
+                    users = users ?: currentList.users
                 )
 
                 listRef.setValue(updatedList)
@@ -132,6 +135,7 @@ fun updateShoppingList(
         }
     }
 }
+
 
 fun removeShoppingList(listId: String, callback: () -> Unit) {
     val database = FirebaseDatabase.getInstance().reference
@@ -285,6 +289,7 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
             )
         }
     }
+
     if (showPopup && selectedListForPopup != null) {
         PopupDialog(
             list = selectedListForPopup!!,
@@ -292,18 +297,19 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                 showPopup = false
                 selectedListForPopup = null
             },
-            onUpdate = { newName, newIcon ->
+            onUpdate = { newName, newIcon, newUsers ->
                 updateShoppingList(
                     listId = selectedListForPopup!!.id,
                     title = newName,
                     icon = newIcon,
-                    callback = {shoppingListsClass.Callback()}
+                    users = newUsers,
+                    callback = { shoppingListsClass.Callback() }
                 )
             },
             onDelete = {
                 removeShoppingList(
                     listId = selectedListForPopup!!.id,
-                    callback = {shoppingListsClass.Callback()}
+                    callback = { shoppingListsClass.Callback() }
                 )
             }
         )
@@ -313,23 +319,27 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
 }
 
 
+
 @Composable
 fun PopupDialog(
     list: ShoppingList,
     onClose: () -> Unit,
-    onUpdate: (String, Int) -> Unit,
+    onUpdate: (String, Int, List<String>) -> Unit,
     onDelete: () -> Unit
 ) {
     var title by remember { mutableStateOf(list.title) }
     var iconIndex by remember { mutableStateOf(list.icon) }
+    var users by remember { mutableStateOf(list.users.toMutableList()) }
+    var newUserEmail by remember { mutableStateOf("") }
+
     val iconDictionary = mapOf(
         1 to Icons.Filled.ShoppingCart,
         2 to Icons.Filled.Place,
         3 to Icons.Filled.Home,
         4 to Icons.Filled.Star,
         5 to Icons.Filled.Favorite,
-        // Add more icons as needed
     )
+
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("Edit Shopping List") },
@@ -340,7 +350,9 @@ fun PopupDialog(
                     onValueChange = { title = it },
                     label = { Text("List Name") }
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Text("Select Icon:")
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -359,7 +371,57 @@ fun PopupDialog(
                         }
                     }
                 }
+
                 Spacer(modifier = Modifier.height(16.dp))
+                Text("Users:")
+                LazyColumn {
+                    items(users) { userId ->
+                        val userEmail = getUserEmailFromId(userId)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Identicon(userId.ifEmpty { "" }, size = 20.dp)
+                            Column {
+                                Text(getUserNameFromId(userId)?:"")
+                                Text(userEmail ?: "No email", style = MaterialTheme.typography.bodySmall)
+                            }
+                            IconButton(
+                                onClick = {
+                                    users.remove(userId)
+                                }
+                            ) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Remove User")
+                            }
+                        }
+                    }
+                }
+
+                TextField(
+                    value = newUserEmail,
+                    onValueChange = { newUserEmail = it },
+                    label = { Text("Add User Email") },
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Email),
+                    trailingIcon = {
+                        IconButton(
+                            onClick = {
+                                if (newUserEmail.isNotBlank()) {
+                                    val newUserId = getUserIdFromEmail(newUserEmail)
+                                    if (newUserId != null && !users.contains(newUserId)) {
+                                        users.add(newUserId)
+                                        newUserEmail = ""
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Filled.AddCircle, contentDescription = "Add User")
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = {
                         onDelete()
@@ -369,11 +431,12 @@ fun PopupDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Delete", color = Color.White)
-                }            }
+                }
+            }
         },
         confirmButton = {
             Button(onClick = {
-                onUpdate(title, iconIndex)
+                onUpdate(title, iconIndex, users)
                 onClose()
             }) {
                 Text("Save")
@@ -385,4 +448,25 @@ fun PopupDialog(
             }
         }
     )
+}
+
+private fun getUserEmailFromId(userId: String): String? {
+    // Implement logic to fetch email from Firebase using the user ID
+    // This could involve querying a Firebase collection that maps user IDs to emails
+    return userId + "@gmail.com"
+    TODO("Implement getUserEmailFromId")
+}
+
+private fun getUserNameFromId(userId: String): String? {
+    // Implement logic to fetch email from Firebase using the user ID
+    // This could involve querying a Firebase collection that maps user IDs to emails
+    return userId + " Friendly Name"
+    TODO("Implement getUserEmailFromId")
+}
+
+private fun getUserIdFromEmail(email: String): String? {
+    // Implement logic to fetch user ID from Firebase using the email
+    // This could involve querying a Firebase collection that maps emails to user IDs
+    return  email.replace("@", "_")
+    TODO("Implement getUserIdFromEmail")
 }
