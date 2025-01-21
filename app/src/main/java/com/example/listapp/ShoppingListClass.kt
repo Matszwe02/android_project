@@ -1,5 +1,19 @@
 package com.example.listapp
 
+import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.ViewModel
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.CopyOnWriteArrayList
+
+
 data class ShoppingList(
     val id: String = "",
     val users: List<String> = emptyList(),
@@ -7,3 +21,82 @@ data class ShoppingList(
     val icon: Int = 0,
     val content: String = ""
 )
+
+
+
+class ShoppingLists : ViewModel()
+{
+    private val _shoppingLists = MutableStateFlow<List<ShoppingList>>(emptyList())
+
+    val shoppingLists: StateFlow<List<ShoppingList>> = _shoppingLists.asStateFlow()
+
+    var userCallback = {}
+    var modifyCallbacks = CopyOnWriteArrayList<() -> Unit>()
+
+
+    fun setShoppingLists(lists: List<ShoppingList>) {
+        _shoppingLists.value = lists
+    }
+
+    fun getState(): List<ShoppingList> {
+        val currentState = shoppingLists.value
+        Log.d("ShoppingLists", "Current state: $currentState")
+        return currentState
+    }
+
+
+//    @Composable
+    fun Callback(): Boolean
+    {
+        Log.i("ShoppingLists", "Callback called")
+        userCallback()
+        val state = shoppingLists.value
+        for (i in modifyCallbacks)
+        {
+            i()
+        }
+
+        return state.isNotEmpty()
+    }
+
+
+    fun fetchShoppingListsFromFirebase(userId: String?) {
+        Log.i("DB", "Fetching shopping lists for user: $userId")
+        if (userId == null) {
+            Log.w("DB", "User ID is null, clearing shopping lists")
+            _shoppingLists.value = emptyList()
+            return
+        }
+
+        val database = FirebaseDatabase.getInstance()
+        val ref = database.reference.child("shoppingLists")
+
+        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                Log.d("DB", "Received data snapshot")
+                val lists = mutableListOf<ShoppingList>()
+                dataSnapshot.children.forEach { child ->
+                    val shoppingList = child.getValue(ShoppingList::class.java)
+                    if (shoppingList != null) {
+                        Log.d("DB", "Processing shopping list: ${shoppingList.title}")
+                        if (shoppingList.users.contains(userId)) {
+                            Log.d("DB", "User has access to list: ${shoppingList.title}")
+                            lists.add(shoppingList)
+                        } else {
+                            Log.d("DB", "User does not have access to list: ${shoppingList.title}")
+                        }
+                    } else {
+                        Log.w("DB", "Failed to parse shopping list")
+                    }
+                }
+                Log.i("DB", "Found ${lists.size} accessible shopping lists")
+                _shoppingLists.value = lists
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("DB", "Database error: ${error.message}")
+                // Handle error
+            }
+        })
+    }
+}

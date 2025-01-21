@@ -51,13 +51,17 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun Home(
-    shoppingLists: List<ShoppingList>,
+    shoppingListsClass: ShoppingLists,
     modifier: Modifier = Modifier,
     navController: NavController,
     authViewModel: AuthViewModel,
     context: Context,
     selectedListId: String?
 ) {
+
+    var shoppingLists = shoppingListsClass.getState()
+    shoppingListsClass.modifyCallbacks.add { shoppingLists = shoppingListsClass.getState() }
+
     val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val db = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app").getReference()
 
@@ -109,7 +113,6 @@ fun Home(
                 }
         }
     }
-
 
     fun addItem() {
         shoppingList.add(ShoppingItem("", "", ""))

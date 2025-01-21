@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -37,9 +38,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import kotlin.coroutines.coroutineContext
 
 
-fun addShoppingList(userId: String, title: String, icon: Int, content: String) {
+fun addShoppingList(userId: String, title: String, icon: Int, content: String, shoppingListsClass: ShoppingLists) {
     if (userId.isEmpty()) {
         Log.e("Firebase", "Cannot add shopping list: User is not logged in")
         return
@@ -70,6 +72,7 @@ fun addShoppingList(userId: String, title: String, icon: Int, content: String) {
         newShoppingListRef.setValue(updatedShoppingList)
             .addOnSuccessListener {
                 Log.i("Firebase", "Shopping list added successfully with ID: $shoppingListId")
+                shoppingListsClass.Callback()
             }
             .addOnFailureListener { e ->
                 Log.e("Firebase", "Error adding shopping list", e)
@@ -81,7 +84,7 @@ fun addShoppingList(userId: String, title: String, icon: Int, content: String) {
 
 
 @Composable
-fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController, authViewModel: AuthViewModel) {
+fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, authViewModel: AuthViewModel) {
 
     val iconDictionary = mapOf(
         1 to Icons.Filled.ShoppingCart,
@@ -94,6 +97,11 @@ fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController, aut
 
     var selectedItem by remember { mutableIntStateOf(0) }
     var selectedListId by remember { mutableStateOf("") } // Variable to hold the selected list's ID
+
+    var shoppingLists by remember { mutableStateOf(shoppingListsClass.getState()) }
+
+    shoppingListsClass.modifyCallbacks.add {shoppingLists = shoppingListsClass.getState()}
+
 
     val topItem = "Account"
     val bottomItem = "App Settings"
@@ -146,6 +154,7 @@ fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController, aut
                                 selectedListId = shoppingList.id
                                 Log.i("ID", "Shopping list selected has ID: $selectedListId")
                                 navController.navigate("home/$selectedListId")
+                                shoppingListsClass.Callback()
                             }
                         )
                     }
@@ -176,7 +185,8 @@ fun NavRail(shoppingLists: List<ShoppingList>, navController: NavController, aut
                                     userId = userId,
                                     title = "New Shopping List",
                                     icon = 1, // Default icon
-                                    content = "Default content"
+                                    content = "Default content",
+                                    shoppingListsClass = shoppingListsClass
                                 )
                             }
                         )

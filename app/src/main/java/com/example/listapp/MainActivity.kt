@@ -36,6 +36,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.example.listapp.GoogleAuthUiClient
 import com.google.android.gms.auth.api.identity.Identity
 import com.example.listapp.NavRail
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
@@ -43,66 +44,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
-
-class MainViewModel : ViewModel() {
-    private val _shoppingLists = MutableStateFlow<List<ShoppingList>>(emptyList())
-    val shoppingLists: StateFlow<List<ShoppingList>> = _shoppingLists.asStateFlow()
-
-
-    fun setShoppingLists(lists: List<ShoppingList>) {
-        _shoppingLists.value = lists
-    }
-
-
-    fun fetchShoppingListsFromFirebase(userId: String?) {
-        Log.i("DB", "Fetching shopping lists for user: $userId")
-        if (userId == null) {
-            Log.w("DB", "User ID is null, clearing shopping lists")
-            _shoppingLists.value = emptyList()
-            return
-        }
-
-        val database = FirebaseDatabase.getInstance()
-        val ref = database.reference.child("shoppingLists")
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                Log.d("DB", "Received data snapshot")
-                val lists = mutableListOf<ShoppingList>()
-                dataSnapshot.children.forEach { child ->
-                    val shoppingList = child.getValue(ShoppingList::class.java)
-                    if (shoppingList != null) {
-                        Log.d("DB", "Processing shopping list: ${shoppingList.title}")
-                        if (shoppingList.users.contains(userId)) {
-                            Log.d("DB", "User has access to list: ${shoppingList.title}")
-                            lists.add(shoppingList)
-                        } else {
-                            Log.d("DB", "User does not have access to list: ${shoppingList.title}")
-                        }
-                    } else {
-                        Log.w("DB", "Failed to parse shopping list")
-                    }
-                }
-                Log.i("DB", "Found ${lists.size} accessible shopping lists")
-                _shoppingLists.value = lists
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("DB", "Database error: ${error.message}")
-                // Handle error
-            }
-        })
-    }
-
-
-}
+import kotlinx.coroutines.delay
 
 
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels()
+    private val shoppingLists: ShoppingLists by viewModels()
+
+    private val authViewModel: AuthViewModel by viewModels()
 
     private val googleAuthUiClient by lazy {
         GoogleAuthUiClient(
@@ -111,11 +61,25 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    override fun onResume() {
+        super.onResume()
+        Log.d("AppFlow", "On Resume")
+        authViewModel.invokeAuthCallbacks()
+        lifecycleScope.launch {
+            var n = 0
+            do {
+                n++
+                delay(1000L)
+                authViewModel.invokeAuthCallbacks()
+            } while (!shoppingLists.Callback() || n > 20)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("AppFlow", "On Create")
         enableEdgeToEdge()
-        val authViewModel : AuthViewModel by viewModels()
+//        val authViewModel : AuthViewModel by viewModels()
         setContent {
             ListAppTheme {
                 // A surface container using the 'background' color from the theme
@@ -125,14 +89,17 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Row {
 
-                    MyAppNavigation(authViewModel = authViewModel, google = googleAuthUiClient, lists = viewModel.shoppingLists)
+                    MyAppNavigation(authViewModel = authViewModel, google = googleAuthUiClient, lists = shoppingLists)
 
                     }
                 }
             }
         }
 
-        authViewModel.addAuthCallback {viewModel.fetchShoppingListsFromFirebase(authViewModel.userId)}
+        authViewModel.addAuthCallback { shoppingLists.Callback() }
+        shoppingLists.userCallback = {shoppingLists.fetchShoppingListsFromFirebase(FirebaseAuth.getInstance().currentUser?.uid ?: "")}
+
+//        authViewModel.invokeAuthCallbacks()
 
     }
 }
@@ -142,7 +109,7 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient, lists: StateFlow<List<ShoppingList>>) {
+fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient, lists: ShoppingLists) {
     val navController = rememberNavController()
 
     val context = LocalContext.current
@@ -151,7 +118,7 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
 //    val dbref = firebase.getReference("info")
 
 
-    NavRail(lists.collectAsState().value, navController, authViewModel)
+    NavRail(lists, navController, authViewModel)
 
     NavHost(navController = navController, startDestination = "login", builder = {
         composable("login"){
@@ -163,7 +130,7 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
         composable("home/{selectedListId}") { backStackEntry ->
             // Retrieve the selectedListId argument
             val selectedListId = backStackEntry.arguments?.getString("selectedListId")
-            Home(lists.collectAsState().value, modifier, navController, authViewModel, context, selectedListId)
+            Home(lists, modifier, navController, authViewModel, context, selectedListId)
         }
         composable("account"){
             Account(modifier, navController, authViewModel, context)

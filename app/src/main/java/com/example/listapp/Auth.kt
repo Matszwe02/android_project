@@ -133,7 +133,7 @@ class AuthViewModel : ViewModel() {
         authCallbacks.remove(callback)
     }
 
-    private fun invokeAuthCallbacks() {
+    fun invokeAuthCallbacks() {
         authCallbacks.forEach { it.invoke() }
     }
 
