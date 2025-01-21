@@ -73,24 +73,22 @@ class ShoppingLists : ViewModel()
 
         ref.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(dataSnapshot: DataSnapshot) {
-                Log.d("DB", "Received data snapshot")
+
                 val lists = mutableListOf<ShoppingList>()
                 dataSnapshot.children.forEach { child ->
                     val shoppingList = child.getValue(ShoppingList::class.java)
                     if (shoppingList != null) {
-                        Log.d("DB", "Processing shopping list: ${shoppingList.title}")
                         if (shoppingList.users.contains(userId)) {
-                            Log.d("DB", "User has access to list: ${shoppingList.title}")
                             lists.add(shoppingList)
-                        } else {
-                            Log.d("DB", "User does not have access to list: ${shoppingList.title}")
                         }
-                    } else {
-                        Log.w("DB", "Failed to parse shopping list")
                     }
                 }
-                Log.i("DB", "Found ${lists.size} accessible shopping lists")
                 _shoppingLists.value = lists
+
+                for (i in modifyCallbacks)
+                {
+                    i()
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {

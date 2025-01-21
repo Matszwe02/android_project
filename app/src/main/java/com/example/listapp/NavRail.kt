@@ -198,7 +198,7 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                     itemsIndexed(shoppingLists) { index, shoppingList ->
                         Box(modifier = Modifier.padding(vertical = 20.dp)) {
                             NavigationRailItem(
-                                modifier = Modifier.padding(vertical = 20.dp),
+//                                modifier = Modifier.padding(vertical = 20.dp),
                                 icon = {
                                     Icon(
                                         iconDictionary[shoppingList.icon] ?: Icons.Filled.ShoppingCart,
@@ -215,6 +215,13 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                                 },
                                 selected = selectedItem == index + 1,
                                 onClick = {
+
+                                    if (selectedItem == index + 1)
+                                    {
+                                        selectedListForPopup = shoppingList
+                                        showPopup = true
+                                    }
+
                                     selectedItem = index + 1
                                     selectedListId = shoppingList.id
                                     Log.i("ID", "Shopping list selected has ID: $selectedListId")
@@ -222,16 +229,6 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                                     shoppingListsClass.Callback()
                                 }
                             )
-                            if (selectedItem == index + 1)
-                                IconButton(
-                                    onClick = {
-                                        selectedListForPopup = shoppingList
-                                        showPopup = true
-                                    },
-                                    modifier = Modifier.align(Alignment.TopEnd)
-                                ) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = "More options")
-                                }
                         }
 
 

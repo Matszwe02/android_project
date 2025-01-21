@@ -65,14 +65,6 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         Log.d("AppFlow", "On Resume")
         authViewModel.invokeAuthCallbacks()
-        lifecycleScope.launch {
-            var n = 0
-            do {
-                n++
-                delay(1000L)
-                authViewModel.invokeAuthCallbacks()
-            } while (!shoppingLists.Callback() || n > 20)
-        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
