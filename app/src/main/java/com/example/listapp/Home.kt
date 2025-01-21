@@ -2,6 +2,7 @@ package com.example.listapp
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -50,20 +51,40 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun Home(
+    shoppingLists: List<ShoppingList>,
     modifier: Modifier = Modifier,
     navController: NavController,
     authViewModel: AuthViewModel,
-    context: Context
+    context: Context,
+    selectedListId: String?
 ) {
     val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-    val db = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app").getReference("users/$userId")
+    val db = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app").getReference()
 
-    // Use a SnapshotStateList for proper state observation
+    val selectedShoppingList = shoppingLists.find { it.id == selectedListId }
+
     val shoppingList = remember {
-        mutableStateListOf(
-            ShoppingItem("Bazylia", "", "Lidl"),
-            ShoppingItem("Pudełko na paprykę", "", "Biedronka")
-        )
+        mutableStateListOf<ShoppingItem>()
+    }
+
+    LaunchedEffect(selectedShoppingList) {
+        shoppingList.clear()
+        selectedShoppingList?.content?.split(";")?.forEach { itemString ->
+            val parts = itemString.split(",")
+            val name = parts.getOrNull(0) ?: ""
+            val price = parts.getOrNull(1) ?: ""
+            val shop = parts.getOrNull(2) ?: ""
+            val isChecked = parts.getOrNull(3)?.toBoolean() ?: false
+
+            shoppingList.add(
+                ShoppingItem(
+                    name = name,
+                    price = price,
+                    shop = shop,
+                    isChecked = isChecked
+                )
+            )
+        }
     }
 
     val authState = authViewModel.authState.observeAsState()
@@ -73,6 +94,34 @@ fun Home(
             else -> Unit
         }
     }
+
+    fun saveShoppingListToFirebase() {
+        val content = shoppingList.joinToString(";") { item ->
+            "${item.name},${item.price},${item.shop},${item.isChecked}"
+        }
+        selectedShoppingList?.let { selectedList ->
+            db.child("shoppingLists").child(selectedList.id).child("content").setValue(content)
+                .addOnSuccessListener {
+                    Log.d("Firebase", "Shopping list updated successfully")
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("Firebase", "Error updating shopping list", exception)
+                }
+        }
+    }
+
+
+    fun addItem() {
+        shoppingList.add(ShoppingItem("", "", ""))
+        saveShoppingListToFirebase()
+    }
+
+    fun removeItem(item: ShoppingItem) {
+        shoppingList.remove(item)
+        saveShoppingListToFirebase()
+    }
+
+
 
     // Dynamically generate filters based on unique shops from the shoppingList
     val filters = remember(shoppingList) {
@@ -213,11 +262,7 @@ fun Home(
                     // Delete button
                     if (isFocused) {
                         IconButton(
-                            onClick = {
-                                if (item in shoppingList) {
-                                    shoppingList.remove(item)
-                                }
-                            }
+                            onClick = { removeItem(item) }
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
@@ -239,9 +284,7 @@ fun Home(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
-                        onClick = {
-                            shoppingList.add(ShoppingItem("", "", ""))
-                        }
+                        onClick = { addItem() }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -250,9 +293,7 @@ fun Home(
                         )
                     }
                     Text("Add new element",
-                        modifier = Modifier.clickable {
-                            shoppingList.add(ShoppingItem("", "", ""))
-                        },
+                        modifier = Modifier.clickable { addItem() },
                         fontSize = 16.sp)
                 }
             }

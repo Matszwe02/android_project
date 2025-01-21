@@ -19,6 +19,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -48,9 +49,11 @@ class MainViewModel : ViewModel() {
     private val _shoppingLists = MutableStateFlow<List<ShoppingList>>(emptyList())
     val shoppingLists: StateFlow<List<ShoppingList>> = _shoppingLists.asStateFlow()
 
+
     fun setShoppingLists(lists: List<ShoppingList>) {
         _shoppingLists.value = lists
     }
+
 
     fun fetchShoppingListsFromFirebase(userId: String?) {
         Log.i("DB", "Fetching shopping lists for user: $userId")
@@ -147,6 +150,7 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
 //    val firebase = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app")
 //    val dbref = firebase.getReference("info")
 
+
     NavRail(lists.collectAsState().value, navController, authViewModel)
 
     NavHost(navController = navController, startDestination = "login", builder = {
@@ -156,8 +160,10 @@ fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, 
         composable("signup"){
             SignupPage(modifier, navController, authViewModel)
         }
-        composable("home"){
-            Home(modifier, navController, authViewModel, context)
+        composable("home/{selectedListId}") { backStackEntry ->
+            // Retrieve the selectedListId argument
+            val selectedListId = backStackEntry.arguments?.getString("selectedListId")
+            Home(lists.collectAsState().value, modifier, navController, authViewModel, context, selectedListId)
         }
         composable("account"){
             Account(modifier, navController, authViewModel, context)
