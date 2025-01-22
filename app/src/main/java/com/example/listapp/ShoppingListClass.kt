@@ -31,6 +31,7 @@ class ShoppingLists : ViewModel()
 {
     private val _shoppingLists = MutableStateFlow<List<ShoppingList>>(emptyList())
 
+    var updated = false
     val shoppingLists: StateFlow<List<ShoppingList>> = _shoppingLists.asStateFlow()
 
     var userCallback = {}
@@ -77,6 +78,7 @@ class ShoppingLists : ViewModel()
         ref.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(dataSnapshot: DataSnapshot) {
 
+                updated = true
                 val lists = mutableListOf<ShoppingList>()
                 dataSnapshot.children.forEach { child ->
                     val shoppingList = child.getValue(ShoppingList::class.java)

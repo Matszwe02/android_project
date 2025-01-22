@@ -17,14 +17,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun Settings(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isNotificationsEnabled: Boolean,
+    onNotificationSettingChanged: (Boolean) -> Unit
 ) {
-
-
-    var notiChecked by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -32,7 +35,6 @@ fun Settings(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(text = "Settings", fontSize = 32.sp)
-
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -43,8 +45,14 @@ fun Settings(
                 modifier = Modifier.weight(1f)
             )
             Switch(
-                checked = notiChecked, // Replace with actual state
-                onCheckedChange = { notiChecked = !notiChecked }
+                checked = isNotificationsEnabled,
+                onCheckedChange = {
+                    onNotificationSettingChanged(it)
+                    // Save the setting to shared preferences
+                    context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).edit()
+                        .putBoolean("notifications_enabled", it)
+                        .apply()
+                }
             )
         }
 

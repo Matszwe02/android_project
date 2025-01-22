@@ -40,11 +40,25 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.collections.map
+import kotlin.collections.toSet
 
 
 
@@ -61,15 +75,28 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private var lastKnownLists = emptySet<String>()
+
+    var isNotificationsEnabled by mutableStateOf(true)
+    var paused by mutableStateOf(true)
+
+
     override fun onResume() {
         super.onResume()
+        paused = false
         Log.d("AppFlow", "On Resume")
         authViewModel.invokeAuthCallbacks()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        paused = true
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d("AppFlow", "On Create")
+
         enableEdgeToEdge()
 //        val authViewModel : AuthViewModel by viewModels()
         setContent {
@@ -93,42 +120,125 @@ class MainActivity : ComponentActivity() {
 
 //        authViewModel.invokeAuthCallbacks()
 
+        startPeriodicListCheck()
     }
-}
+
+    private fun startPeriodicListCheck() {
+        GlobalScope.launch(Dispatchers.IO) {
+            while (true) {
+//                delay(5 * 60 * 1000) // Check every 5 minutes
+                delay(20 * 1000) // Check every 20 seconds
+                checkForNewLists()
+            }
+        }
+    }
+    private var isFirstLaunch = true
+
+    private suspend fun checkForNewLists() {
+        if (!isNotificationsEnabled || !paused) return
+
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null) {
+
+            val currentLists = shoppingLists.getState()
+            val currentListIds = mutableSetOf<String>()
+
+            for (list in currentLists) {
+                currentListIds.add(list.id)
+            }
+
+            if ( !isFirstLaunch )
+            {
+                if (currentListIds != lastKnownLists) {
+                    val newLists = currentListIds.minus(lastKnownLists)
+                    for (newListId in newLists) {
+                        val newList = currentLists.find { it.id == newListId }
+                        if (newList != null) {
+                            showNotificationForNewList(newList)
+                        }
+                    }
+                }
+            }
+            lastKnownLists = currentListIds
+            if (shoppingLists.updated) isFirstLaunch = false
+        }
+    }
+
+    private fun showNotificationForNewList(newList: ShoppingList) {
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "LIST_NOTIFICATIONS",
+                "Shopping List Notifications",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val builder = NotificationCompat.Builder(this, "LIST_NOTIFICATIONS")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("New Shopping List Added")
+            .setContentText("You've been added to: ${newList.title}")
+            .setAutoCancel(true)
+
+        notificationManager.notify(newList.id.hashCode(), builder.build())
+    }
 
 
 
 
+    @Composable
+    fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient, lists: ShoppingLists) {
+        val navController = rememberNavController()
 
-@Composable
-fun MyAppNavigation(modifier: Modifier = Modifier,authViewModel: AuthViewModel, google: GoogleAuthUiClient, lists: ShoppingLists) {
-    val navController = rememberNavController()
+        val context = LocalContext.current
 
-    val context = LocalContext.current
-    FirebaseApp.initializeApp(context)
+        isNotificationsEnabled = context.getSharedPreferences("app_settings", MODE_PRIVATE)
+            .getBoolean("notifications_enabled", true)
+        
+        FirebaseApp.initializeApp(context)
 //    val firebase = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app")
 //    val dbref = firebase.getReference("info")
 
 
-    NavRail(lists, navController, authViewModel)
+        NavRail(lists, navController, authViewModel)
 
-    NavHost(navController = navController, startDestination = "login", builder = {
-        composable("login"){
-            LoginPage(modifier, navController, authViewModel, google = google)
-        }
-        composable("signup"){
-            SignupPage(modifier, navController, authViewModel)
-        }
-        composable("home/{selectedListId}") { backStackEntry ->
-            // Retrieve the selectedListId argument
-            val selectedListId = backStackEntry.arguments?.getString("selectedListId")
-            Home(lists, modifier, navController, authViewModel, context, selectedListId)
-        }
-        composable("account"){
-            Account(modifier, navController, authViewModel, context)
-        }
-        composable("settings"){
-            Settings(modifier)
-        }
-    })
+        NavHost(navController = navController, startDestination = "login", builder = {
+            composable("login"){
+                LoginPage(modifier, navController, authViewModel, google = google)
+            }
+            composable("signup"){
+                SignupPage(modifier, navController, authViewModel)
+            }
+            composable("home/{selectedListId}") { backStackEntry ->
+                // Retrieve the selectedListId argument
+                val selectedListId = backStackEntry.arguments?.getString("selectedListId")
+                Home(lists, modifier, navController, authViewModel, context, selectedListId)
+            }
+            composable("account"){
+                Account(modifier, navController, authViewModel, context)
+            }
+            composable("settings"){
+                Settings(
+                    modifier,
+                    onNotificationSettingChanged = { enabled -> isNotificationsEnabled = enabled },
+                    isNotificationsEnabled = isNotificationsEnabled
+                )
+            }
+        })
+    }
+
+
+
+
+
 }
+
+
+
+
+
+
+
+
