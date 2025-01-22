@@ -1,6 +1,7 @@
 package com.example.listapp
 
 import Identicon
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -155,6 +156,7 @@ fun removeShoppingList(listId: String, callback: () -> Unit) {
 @Composable
 fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, authViewModel: AuthViewModel) {
 
+    val context = LocalContext.current
     val iconDictionary = mapOf(
         1 to Icons.Filled.ShoppingCart,
         2 to Icons.Filled.Place,
@@ -312,7 +314,8 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                     listId = selectedListForPopup!!.id,
                     callback = { shoppingListsClass.Callback() }
                 )
-            }
+            },
+            context = context
         )
     }
 
@@ -326,7 +329,8 @@ fun PopupDialog(
     list: ShoppingList,
     onClose: () -> Unit,
     onUpdate: (String, Int, List<String>) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    context: Context
 ) {
     var title by remember { mutableStateOf(list.title) }
     var iconIndex by remember { mutableStateOf(list.icon) }
@@ -437,6 +441,10 @@ fun PopupDialog(
                                             users.add(newUserId)
                                             newUserEmail = "" // Clear the input field after adding
                                         }
+                                        else
+                                        {
+                                            Toast.makeText(context, "User does not exist!", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             }
@@ -497,17 +505,31 @@ private fun getUserNameFromId(userId: String, callback: (String?) -> Unit) {
     }
 }
 
-// Get the userId from the email
+
 private fun getUserIdFromEmail(email: String, callback: (String?) -> Unit) {
+    val normalizedEmail = normalizeEmail(email)
     val usersRef = FirebaseDatabase.getInstance().getReference("users")
-    usersRef.orderByChild("email").equalTo(email).get().addOnSuccessListener { snapshot ->
-        if (snapshot.exists()) {
-            val userId = snapshot.children.first().key  // Get the first user's UID from the snapshot
-            callback(userId)
+
+    usersRef.get().addOnCompleteListener { task ->
+        if (task.isSuccessful) {
+            val snapshot = task.result
+            if (snapshot.exists()) {
+                val matchingUser = snapshot.children.find { childSnapshot ->
+                    val storedEmail = childSnapshot.child("email").getValue(String::class.java)?.trim()?.toLowerCase()
+                    storedEmail == normalizedEmail
+                }
+                callback(matchingUser?.key)
+            } else {
+                callback(null)
+            }
         } else {
+            Log.e("FirebaseDebug", "Error fetching users", task.exception)
             callback(null)
         }
-    }.addOnFailureListener {
-        callback(null)
     }
 }
+
+private fun normalizeEmail(email: String): String {
+    return email.trim().toLowerCase()
+}
+
