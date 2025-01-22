@@ -269,7 +269,6 @@ fun Home(
                 text = "Total price: $totalPrice",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
 

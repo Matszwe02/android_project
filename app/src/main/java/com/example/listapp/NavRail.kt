@@ -210,7 +210,7 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                 ) {
                     // List of shopping lists
                     itemsIndexed(shoppingLists) { index, shoppingList ->
-                        Box(modifier = Modifier.padding(vertical = 20.dp)) {
+                        Box(modifier = Modifier.padding(vertical = 12.dp)) {
                             NavigationRailItem(
 //                                modifier = Modifier.padding(vertical = 20.dp),
                                 icon = {
