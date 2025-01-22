@@ -135,7 +135,6 @@ fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authVie
 
         var user by remember { mutableStateOf<FirebaseUser?>(null) }
 
-//        Column(modifier = Modifier.fillMaxSize()) {
             if (user == null) {
                 GoogleSignInButton(
                     onSignInSuccess = { firebaseUser ->
@@ -156,23 +155,6 @@ fun LoginPage(modifier: Modifier = Modifier,navController: NavController,authVie
                     Text("Sign out")
                 }
             }
-//        }
-
-
-//        Button(onClick = {
-//            GlobalScope.launch(Dispatchers.Main) {
-//                val idToken = google.signIn()
-//                if (idToken != null) {
-//                    Toast.makeText(context, "Login Success!", Toast.LENGTH_SHORT).show()
-//                    navController.navigate("home")
-//                } else {
-//                    Toast.makeText(context, "Login Failed!", Toast.LENGTH_SHORT).show()
-//                }
-//            }
-//            }
-//        ) {
-//            Text(text = "Login with Google")
-//        }
 
 
     }
