@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
@@ -47,8 +48,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -58,6 +61,10 @@ import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.tasks.await
+import java.util.Locale
 import kotlin.coroutines.coroutineContext
 
 
@@ -236,6 +243,17 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                                     shoppingListsClass.Callback()
                                 }
                             )
+                            if (selectedItem == index + 1) {
+                                Icon(
+                                    imageVector = Icons.Filled.Edit,
+                                    contentDescription = "Edit",
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(end = 4.dp)
+                                        .alpha(0.5f)
+                                        .size(18.dp)
+                                )
+                            }
                         }
 
 
@@ -334,7 +352,7 @@ fun PopupDialog(
 ) {
     var title by remember { mutableStateOf(list.title) }
     var iconIndex by remember { mutableStateOf(list.icon) }
-    var users by remember { mutableStateOf(list.users.toMutableList()) }
+    val users = remember { mutableStateListOf<String>().apply { addAll(list.users) } }
     var newUserEmail by remember { mutableStateOf("") }
 
     val iconDictionary = mapOf(
@@ -350,22 +368,21 @@ fun PopupDialog(
     val userNames = remember { mutableStateMapOf<String, String>() }
 
     // Use LaunchedEffect to load user email and names asynchronously
-    LaunchedEffect(users) {
-        users.forEach { userId ->
-            // Load email if not already cached
-            if (userEmails[userId] == null) {
-                getUserEmailFromId(userId) { email ->
-                    email?.let { userEmails[userId] = it }
-                }
-            }
-            // Load name if not already cached
-            if (userNames[userId] == null) {
-                getUserNameFromId(userId) { name ->
-                    name?.let { userNames[userId] = it }
-                }
-            }
-        }
-    }
+//    LaunchedEffect(users) {
+//        users.forEach { userId ->
+//            // Load email if not already cached
+//            if (userEmails[userId] == null) {
+//                var it = getUserEmailFromId(userId)
+//                email.let { userEmails[userId] = it }
+//            }
+//            // Load name if not already cached
+//            if (userNames[userId] == null) {
+//                var it = getUserNameFromId(userId)
+//                name.let { userNames[userId] = it }
+//                }
+//            }
+//        }
+//    }
 
     AlertDialog(
         onDismissRequest = onClose,
@@ -403,9 +420,8 @@ fun PopupDialog(
                 Text("Users:")
                 LazyColumn {
                     items(users) { userId ->
-                        // Fetch the user email and name from the state
-                        val userEmail = userEmails[userId]
-                        val userName = userNames[userId]
+                        val userEmail by getUserEmailFromId(userId).collectAsState(initial = null)
+                        val userName by getUserNameFromId(userId).collectAsState(initial = null)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -413,8 +429,11 @@ fun PopupDialog(
                         ) {
                             Identicon(userId.ifEmpty { "" }, size = 20.dp)
                             Column {
-                                Text(userName ?: "Loading...") // Display "Loading..." while name is being fetched
-                                Text(userEmail ?: "No email", style = MaterialTheme.typography.bodySmall)
+                                Text(userName ?: "Loading...")
+                                Text(
+                                    userEmail ?: "No email",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
                             IconButton(
                                 onClick = {
@@ -470,7 +489,10 @@ fun PopupDialog(
         },
         confirmButton = {
             Button(onClick = {
-                onUpdate(title, iconIndex, users)
+                if (users.isEmpty())
+                    onDelete()
+                else
+                    onUpdate(title, iconIndex, users)
                 onClose()
             }) {
                 Text("Save")
@@ -484,30 +506,25 @@ fun PopupDialog(
     )
 }
 
-private fun getUserEmailFromId(userId: String, callback: (String?) -> Unit) {
+private fun getUserEmailFromId(userId: String): Flow<String?> = flow {
     val userRef = FirebaseDatabase.getInstance().getReference("users").child(userId).child("email")
-    userRef.get().addOnSuccessListener { snapshot ->
-        val email = snapshot.getValue(String::class.java)
-        callback(email)
-    }.addOnFailureListener {
-        callback(null)
-    }
+    val snapshot = userRef.get().await()
+    val email = snapshot.getValue(String::class.java)
+    emit(email)
 }
 
+
 // Get the user's name based on their userId
-private fun getUserNameFromId(userId: String, callback: (String?) -> Unit) {
+private fun getUserNameFromId(userId: String): Flow<String?> = flow {
     val userRef = FirebaseDatabase.getInstance().getReference("users").child(userId).child("name")
-    userRef.get().addOnSuccessListener { snapshot ->
-        val name = snapshot.getValue(String::class.java)
-        callback(name)
-    }.addOnFailureListener {
-        callback(null)
-    }
+    val snapshot = userRef.get().await()
+    val name = snapshot.getValue(String::class.java)
+    emit(name)
 }
 
 
 private fun getUserIdFromEmail(email: String, callback: (String?) -> Unit) {
-    val normalizedEmail = normalizeEmail(email)
+    val normalizedEmail = email.trim().lowercase(Locale.ROOT)
     val usersRef = FirebaseDatabase.getInstance().getReference("users")
 
     usersRef.get().addOnCompleteListener { task ->
@@ -515,7 +532,7 @@ private fun getUserIdFromEmail(email: String, callback: (String?) -> Unit) {
             val snapshot = task.result
             if (snapshot.exists()) {
                 val matchingUser = snapshot.children.find { childSnapshot ->
-                    val storedEmail = childSnapshot.child("email").getValue(String::class.java)?.trim()?.toLowerCase()
+                    val storedEmail = childSnapshot.child("email").getValue(String::class.java)?.trim()?.lowercase(Locale.ROOT)
                     storedEmail == normalizedEmail
                 }
                 callback(matchingUser?.key)
@@ -528,8 +545,3 @@ private fun getUserIdFromEmail(email: String, callback: (String?) -> Unit) {
         }
     }
 }
-
-private fun normalizeEmail(email: String): String {
-    return email.trim().toLowerCase()
-}
-
