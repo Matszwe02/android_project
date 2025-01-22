@@ -46,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -340,6 +341,28 @@ fun PopupDialog(
         5 to Icons.Filled.Favorite,
     )
 
+    // State to hold user emails and names
+    val userEmails = remember { mutableStateMapOf<String, String>() }
+    val userNames = remember { mutableStateMapOf<String, String>() }
+
+    // Use LaunchedEffect to load user email and names asynchronously
+    LaunchedEffect(users) {
+        users.forEach { userId ->
+            // Load email if not already cached
+            if (userEmails[userId] == null) {
+                getUserEmailFromId(userId) { email ->
+                    email?.let { userEmails[userId] = it }
+                }
+            }
+            // Load name if not already cached
+            if (userNames[userId] == null) {
+                getUserNameFromId(userId) { name ->
+                    name?.let { userNames[userId] = it }
+                }
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("Edit Shopping List") },
@@ -376,7 +399,9 @@ fun PopupDialog(
                 Text("Users:")
                 LazyColumn {
                     items(users) { userId ->
-                        val userEmail = getUserEmailFromId(userId)
+                        // Fetch the user email and name from the state
+                        val userEmail = userEmails[userId]
+                        val userName = userNames[userId]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -384,7 +409,7 @@ fun PopupDialog(
                         ) {
                             Identicon(userId.ifEmpty { "" }, size = 20.dp)
                             Column {
-                                Text(getUserNameFromId(userId)?:"")
+                                Text(userName ?: "Loading...") // Display "Loading..." while name is being fetched
                                 Text(userEmail ?: "No email", style = MaterialTheme.typography.bodySmall)
                             }
                             IconButton(
@@ -407,10 +432,11 @@ fun PopupDialog(
                         IconButton(
                             onClick = {
                                 if (newUserEmail.isNotBlank()) {
-                                    val newUserId = getUserIdFromEmail(newUserEmail)
-                                    if (newUserId != null && !users.contains(newUserId)) {
-                                        users.add(newUserId)
-                                        newUserEmail = ""
+                                    getUserIdFromEmail(newUserEmail) { newUserId ->
+                                        if (newUserId != null && !users.contains(newUserId)) {
+                                            users.add(newUserId)
+                                            newUserEmail = "" // Clear the input field after adding
+                                        }
                                     }
                                 }
                             }
@@ -450,23 +476,38 @@ fun PopupDialog(
     )
 }
 
-private fun getUserEmailFromId(userId: String): String? {
-    // Implement logic to fetch email from Firebase using the user ID
-    // This could involve querying a Firebase collection that maps user IDs to emails
-    return userId + "@gmail.com"
-    TODO("Implement getUserEmailFromId")
+private fun getUserEmailFromId(userId: String, callback: (String?) -> Unit) {
+    val userRef = FirebaseDatabase.getInstance().getReference("users").child(userId).child("email")
+    userRef.get().addOnSuccessListener { snapshot ->
+        val email = snapshot.getValue(String::class.java)
+        callback(email)
+    }.addOnFailureListener {
+        callback(null)
+    }
 }
 
-private fun getUserNameFromId(userId: String): String? {
-    // Implement logic to fetch email from Firebase using the user ID
-    // This could involve querying a Firebase collection that maps user IDs to emails
-    return userId + " Friendly Name"
-    TODO("Implement getUserEmailFromId")
+// Get the user's name based on their userId
+private fun getUserNameFromId(userId: String, callback: (String?) -> Unit) {
+    val userRef = FirebaseDatabase.getInstance().getReference("users").child(userId).child("name")
+    userRef.get().addOnSuccessListener { snapshot ->
+        val name = snapshot.getValue(String::class.java)
+        callback(name)
+    }.addOnFailureListener {
+        callback(null)
+    }
 }
 
-private fun getUserIdFromEmail(email: String): String? {
-    // Implement logic to fetch user ID from Firebase using the email
-    // This could involve querying a Firebase collection that maps emails to user IDs
-    return  email.replace("@", "_")
-    TODO("Implement getUserIdFromEmail")
+// Get the userId from the email
+private fun getUserIdFromEmail(email: String, callback: (String?) -> Unit) {
+    val usersRef = FirebaseDatabase.getInstance().getReference("users")
+    usersRef.orderByChild("email").equalTo(email).get().addOnSuccessListener { snapshot ->
+        if (snapshot.exists()) {
+            val userId = snapshot.children.first().key  // Get the first user's UID from the snapshot
+            callback(userId)
+        } else {
+            callback(null)
+        }
+    }.addOnFailureListener {
+        callback(null)
+    }
 }
