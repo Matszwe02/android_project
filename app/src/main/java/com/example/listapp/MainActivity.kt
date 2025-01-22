@@ -55,6 +55,7 @@ import android.os.Build
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.collections.map
@@ -94,7 +95,14 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        var keepSplashScreen = true
         super.onCreate(savedInstanceState)
+        installSplashScreen().setKeepOnScreenCondition { keepSplashScreen }
+
+        lifecycleScope.launch {
+            delay(500)
+            keepSplashScreen = false
+        }
         Log.d("AppFlow", "On Create")
 
         enableEdgeToEdge()
