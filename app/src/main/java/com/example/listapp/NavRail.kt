@@ -286,7 +286,7 @@ fun NavRail(shoppingListsClass: ShoppingLists, navController: NavController, aut
                                     userId = userId,
                                     title = "New Shopping List",
                                     icon = 1, // Default icon
-                                    content = "Default content",
+                                    content = "",
                                     callback = { shoppingListsClass.Callback() }
                                 )
                             }
