@@ -278,7 +278,7 @@ fun Home(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(start = 16.dp)
+//                                .padding(start = 16.dp)
                         ) {
                             Text(
                                 text = item.name.ifBlank { "Unnamed Item" },
