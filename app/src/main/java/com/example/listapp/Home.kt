@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -45,6 +46,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +70,8 @@ fun Home(
     val db = FirebaseDatabase.getInstance("https://application-191ac-default-rtdb.europe-west1.firebasedatabase.app").getReference()
 
     val selectedShoppingList = shoppingLists.find { it.id == selectedListId }
+
+    var currentlyEditingIndex by remember { mutableStateOf<Int?>(null) }
 
     val shoppingList = remember {
         mutableStateListOf<ShoppingItem>()
@@ -193,6 +197,16 @@ fun Home(
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Dynamically generate filters based on unique shops from the shoppingList
+            val filters = remember(shoppingList) {
+                derivedStateOf {
+                    listOf("Checked") + shoppingList.map { it.shop.lowercase() }.distinct().map { it.replaceFirstChar { char -> char.uppercase() } }.filter { it.isNotEmpty() }
+                }
+            }.value
+
+            // Track the state of selected filters
+            val selectedFilters = remember { mutableStateMapOf<String, Boolean>() }
+
             // Filter bar
             LazyRow(
                 modifier = Modifier.fillMaxWidth()
@@ -227,7 +241,7 @@ fun Home(
             // Filtered shopping list
             val filteredShoppingList = remember(shoppingList, selectedFilters) {
                 derivedStateOf {
-                    shoppingList.filter { item ->
+                    shoppingList.filterIndexed { index, item ->
                         val isCheckedFilter = selectedFilters["Checked"] == true
                         val shopFilters = selectedFilters.filter { it.key != "Checked" && it.value }.keys.map { it.lowercase() }
 
@@ -235,7 +249,7 @@ fun Home(
                         val matchesChecked = !isCheckedFilter || (isCheckedFilter && item.isChecked)
                         val matchesShop = shopFilters.isEmpty() || shopFilters.contains(item.shop.lowercase())
 
-                        matchesChecked && matchesShop
+                        matchesChecked && matchesShop // && currentlyEditingIndex != index
                     }
                 }
             }.value
@@ -244,79 +258,46 @@ fun Home(
                 modifier = Modifier.weight(1f)
             ) {
                 itemsIndexed(filteredShoppingList) { index, item ->
-                    var isFocused by remember { mutableStateOf(false) }
-
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
                     ) {
-                        // Checkbox
                         Checkbox(
                             checked = item.isChecked,
                             onCheckedChange = {
                                 val originalIndex = shoppingList.indexOf(item)
                                 if (originalIndex != -1) {
                                     shoppingList[originalIndex] = item.copy(isChecked = it)
+                                    saveShoppingListToFirebase()
                                 }
                             }
                         )
 
-                        // Editable text fields in a LazyRow with stable keys
-                        LazyRow(
+                        Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(start = 16.dp)
                         ) {
-                            itemsIndexed(listOf("name", "price", "shop")) { fieldIndex, fieldName ->
-                                val textValue = when (fieldName) {
-                                    "name" -> item.name
-                                    "price" -> item.price
-                                    "shop" -> item.shop
-                                    else -> ""
+                            Text(
+                                text = item.name.ifBlank { "Unnamed Item" },
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable {
+                                    currentlyEditingIndex = shoppingList.indexOf(item)
                                 }
+                            )
 
-                                val onValueChange: (String) -> Unit = { newValue ->
-                                    val originalIndex = shoppingList.indexOf(item)
-                                    if (originalIndex != -1) {
-                                        shoppingList[originalIndex] = when (fieldName) {
-                                            "name" -> item.copy(name = newValue)
-                                            "price" -> item.copy(price = newValue)
-                                            "shop" -> item.copy(shop = newValue)
-                                            else -> item
-                                        }
-                                    }
-                                }
-
-                                TextField(
-                                    value = textValue,
-                                    onValueChange = onValueChange,
-                                    label = { Text(fieldName.replaceFirstChar { it.uppercase() }) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp)
-                                        .onFocusChanged { isFocused = it.isFocused }
-                                )
-                            }
-                        }
-
-                        // Delete button
-                        if (isFocused) {
-                            IconButton(
-                                onClick = { removeItem(item) }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Delete",
-                                    tint = Color.Red
-                                )
-                            }
+                            Text(
+                                text = "Price: ${item.price}, Shop: ${item.shop}",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
                         }
                     }
                 }
 
-                // Add new element button as part of the LazyColumn
                 item {
                     Row(
                         modifier = Modifier
@@ -326,7 +307,12 @@ fun Home(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
-                            onClick = { addItem() }
+                            onClick = {
+                                val newItem = ShoppingItem("", "", "")
+                                shoppingList.add(newItem)
+                                currentlyEditingIndex = shoppingList.lastIndex
+                                saveShoppingListToFirebase()
+                            }
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
@@ -334,10 +320,112 @@ fun Home(
                                 tint = Color.LightGray
                             )
                         }
-                        Text("Add new element",
-                            modifier = Modifier.clickable { addItem() },
-                            fontSize = 16.sp)
+                        Text(
+                            "Add new element",
+                            modifier = Modifier.clickable {
+                                val newItem = ShoppingItem("", "", "")
+                                shoppingList.add(newItem)
+                                currentlyEditingIndex = shoppingList.lastIndex
+                                saveShoppingListToFirebase()
+                            },
+                            fontSize = 16.sp
+                        )
                     }
+                }
+            }
+        }
+
+        // Show popup if an item is being edited
+        currentlyEditingIndex?.let { editingIndex ->
+            val editingItem = shoppingList[editingIndex]
+            EditItemPopup(
+                item = editingItem,
+                onDismiss = { currentlyEditingIndex = null },
+                onSave = { updatedItem ->
+                    shoppingList[editingIndex] = updatedItem
+                    saveShoppingListToFirebase()
+                    currentlyEditingIndex = null
+                },
+                onDelete = {
+                    shoppingList.removeAt(editingIndex)
+                    saveShoppingListToFirebase()
+                    currentlyEditingIndex = null
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun EditItemPopup(
+    item: ShoppingItem,
+    onDismiss: () -> Unit,
+    onSave: (ShoppingItem) -> Unit,
+    onDelete: () -> Unit
+) {
+    var name by remember { mutableStateOf(item.name) }
+    var price by remember { mutableStateOf(item.price) }
+    var shop by remember { mutableStateOf(item.shop) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .background(Color.DarkGray, shape = RoundedCornerShape(8.dp))
+                .padding(16.dp)
+        ) {
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextField(
+                value = price,
+                onValueChange = { price = it },
+                label = { Text("Price") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextField(
+                value = shop,
+                onValueChange = { shop = it },
+                label = { Text("Shop") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                Button(onClick = { onSave(item.copy(name = name, price = price, shop = shop)) }) {
+                    Text("Save")
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+
+
+                Button(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Delete", color = Color.White)
                 }
             }
         }
