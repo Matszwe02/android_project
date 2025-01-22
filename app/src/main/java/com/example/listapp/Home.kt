@@ -48,9 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-
-
+import kotlinx.coroutines.delay
 
 
 @Composable
@@ -63,7 +61,7 @@ fun Home(
     selectedListId: String?
 ) {
 
-    var shoppingLists = shoppingListsClass.getState()
+    var shoppingLists by remember { mutableStateOf(shoppingListsClass.getState()) }
     shoppingListsClass.modifyCallbacks.add { shoppingLists = shoppingListsClass.getState() }
 
     val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
@@ -102,6 +100,14 @@ fun Home(
 
     LaunchedEffect(Unit) {
         saveUserMetadataToDatabase()
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5000) // Wait for 5 seconds
+            shoppingListsClass.Callback() // Trigger the refresh logic
+            shoppingLists = shoppingListsClass.getState() // Update the local state
+        }
     }
 
     LaunchedEffect(selectedShoppingList) {
