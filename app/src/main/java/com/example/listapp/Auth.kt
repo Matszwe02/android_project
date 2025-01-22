@@ -1,5 +1,6 @@
 package com.example.listapp
 
+import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,12 +42,16 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 
 import androidx.activity.ComponentActivity
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.firebase.Firebase
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -175,7 +180,6 @@ sealed class AuthState {
 
 
 
-
 @Composable
 fun GoogleSignInButton(
     modifier: Modifier = Modifier,
@@ -183,45 +187,42 @@ fun GoogleSignInButton(
     onSignInFailure: (Exception) -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as ComponentActivity
+
+    val googleAuthUiClient = remember { GoogleAuthUiClient(context) }
 
     val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
+        contract = ActivityResultContracts.StartIntentSenderForResult(),
         onResult = { result ->
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)!!
-                val credential = GoogleAuthProvider.getCredential(account.idToken!!, null)
-
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        val authResult = FirebaseAuth.getInstance().signInWithCredential(credential).await()
-                        authResult.user?.let { firebaseUser ->
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val signInResult = googleAuthUiClient.signInWithIntent(result.data ?: Intent())
+                    signInResult.data?.let { userData ->
+                        val firebaseUser = Firebase.auth.currentUser
+                        if (firebaseUser != null) {
                             withContext(Dispatchers.Main) {
                                 onSignInSuccess(firebaseUser)
                             }
-                        } ?: throw Exception("FirebaseUser is null")
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            onSignInFailure(e)
+                        } else {
+                            throw Exception("FirebaseUser is null")
                         }
+                    } ?: throw Exception("UserData is null")
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        onSignInFailure(e)
                     }
                 }
-            } catch (e: ApiException) {
-                onSignInFailure(e)
             }
         }
     )
 
     Button(
         onClick = {
-            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(context.getString(R.string.web_client_id))
-                .requestEmail()
-                .build()
-
-            val googleSignInClient = GoogleSignIn.getClient(context, gso)
-            launcher.launch(googleSignInClient.signInIntent)
+            CoroutineScope(Dispatchers.IO).launch {
+                val intentSender = googleAuthUiClient.signIn()
+                intentSender?.let {
+                    launcher.launch(IntentSenderRequest.Builder(it).build())
+                }
+            }
         },
         modifier = modifier.padding(16.dp),
     ) {

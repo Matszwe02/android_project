@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.firebase.Firebase
 import com.google.firebase.auth.GoogleAuthProvider
@@ -31,7 +32,7 @@ data class UserData(
 
 class GoogleAuthUiClient(
     private val context: Context,
-    private val oneTapClient: SignInClient
+    private val oneTapClient: SignInClient = Identity.getSignInClient(context)
 ) {
     private val auth = Firebase.auth
 
