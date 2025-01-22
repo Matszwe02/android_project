@@ -100,8 +100,10 @@ fun Account(modifier: Modifier = Modifier, navController: NavController, authVie
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Hello, ${username}!"
+            text = "Hello, ${username}!",
+            style = MaterialTheme.typography.titleLarge // or any other desired typography
         )
+
         Text(
             text = user?.email?:""
         )
