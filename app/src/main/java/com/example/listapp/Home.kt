@@ -119,7 +119,9 @@ fun Home(
         selectedShoppingList?.content?.split(";")?.forEach { itemString ->
             val parts = itemString.split(",")
             val name = parts.getOrNull(0) ?: ""
-            val price = parts.getOrNull(1) ?: ""
+            val price = parts.getOrNull(1)?.let {
+                it.toFloatOrNull()?.toString() ?: "0.00"
+            } ?: "0.0"
             val shop = parts.getOrNull(2) ?: ""
             val isChecked = parts.getOrNull(3)?.toBoolean() ?: false
 
@@ -238,6 +240,8 @@ fun Home(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+
+
             // Filtered shopping list
             val filteredShoppingList = remember(shoppingList, selectedFilters) {
                 derivedStateOf {
@@ -249,10 +253,25 @@ fun Home(
                         val matchesChecked = !isCheckedFilter || (isCheckedFilter && item.isChecked)
                         val matchesShop = shopFilters.isEmpty() || shopFilters.contains(item.shop.lowercase())
 
-                        matchesChecked && matchesShop // && currentlyEditingIndex != index
+                        matchesChecked && matchesShop
                     }
                 }
             }.value
+
+            val totalPrice = remember(filteredShoppingList) {
+                derivedStateOf {
+                    filteredShoppingList.sumOf { it.price.toDoubleOrNull() ?: 0.0 }
+                }
+            }.value
+
+            // Display total price
+            Text(
+                text = "Total price: $totalPrice",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
             LazyColumn(
                 modifier = Modifier.weight(1f)
@@ -276,12 +295,10 @@ fun Home(
                         )
 
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
-//                                .padding(start = 16.dp)
+                            modifier = Modifier.weight(1f)
                         ) {
                             Text(
-                                text = item.name.ifBlank { "Unnamed Item" },
+                                text = item.name.ifBlank { "empty in here..." },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable {
@@ -354,6 +371,7 @@ fun Home(
             )
         }
     }
+
 }
 
 @Composable
@@ -407,7 +425,15 @@ fun EditItemPopup(
                 modifier = Modifier.fillMaxWidth()
             ) {
 
-                Button(onClick = { onSave(item.copy(name = name, price = price, shop = shop)) }) {
+                Button(onClick = {
+                    onSave(
+                        item.copy(
+                            name = name.replace(",", "."),
+                            price = price.replace(",", ".").toFloatOrNull()?.toString() ?: "0.00",
+                            shop = shop.replace(",", ".")
+                        )
+                    )
+                }) {
                     Text("Save")
                 }
 
